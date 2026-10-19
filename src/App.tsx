@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import posterAube from "./assets/aube.svg";
 import posterMemoire from "./assets/memoire.svg";
 import posterOrbite from "./assets/orbite.svg";
+import { BookingDialog, type Film } from "./BookingDialog";
 
-const films = [
+const films: Film[] = [
   { id: 1, title: "Après l’aube", genre: "Drame", time: "18 h 10", available: true, poster: posterAube },
   { id: 2, title: "La mémoire des murs", genre: "Documentaire", time: "19 h 30", available: false, poster: posterMemoire },
   { id: 3, title: "Orbite 9", genre: "Science-fiction", time: "21 h 00", available: true, poster: posterOrbite },
@@ -11,15 +12,35 @@ const films = [
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const selectedFilm = films.find((film) => film.title === selected);
+  const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [confirmedBooking, setConfirmedBooking] = useState<{ title: string; time: string } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
   const filteredFilms = useMemo(
     () => films.filter((film) => film.title.toLowerCase().includes(query.toLowerCase())),
     [query],
   );
+
   const toggleFavorite = (id: number) => {
     setFavorites((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
+  };
+
+  const openBooking = (film: Film, triggerElement: HTMLButtonElement) => {
+    triggerRef.current = triggerElement;
+    setSelectedFilm(film);
+  };
+
+  const closeBooking = () => {
+    setSelectedFilm(null);
+    requestAnimationFrame(() => {
+      triggerRef.current?.focus();
+    });
+  };
+
+  const handleConfirm = (film: Film) => {
+    setConfirmedBooking({ title: film.title, time: film.time });
+    closeBooking();
   };
 
   return (
@@ -38,8 +59,13 @@ export default function App() {
         <p className="intro">Découvrez la programmation de cette semaine.</p>
         <div className="search-field">
           <label htmlFor="film-search">Rechercher un film</label>
-          <input id="film-search" className="search" type="search" value={query}
-            onChange={(event) => setQuery(event.target.value)} />
+          <input
+            id="film-search"
+            className="search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
         </div>
         <section id="programme" aria-labelledby="programme-title">
           <h2 id="programme-title">Programme</h2>
@@ -56,11 +82,20 @@ export default function App() {
                     <h3>{film.title}</h3>
                     <p>{film.genre} · {film.time}</p>
                     <div className="actions">
-                      <button type="button" className="booking-trigger" onClick={() => setSelected(film.title)}>
+                      <button
+                        type="button"
+                        className="booking-trigger"
+                        onClick={(event) => openBooking(film, event.currentTarget)}
+                      >
                         Réserver {film.title}
                       </button>
-                      <button type="button" className="favorite" aria-pressed={isFavorite}
-                        aria-label={"Favori : " + film.title} onClick={() => toggleFavorite(film.id)}>
+                      <button
+                        type="button"
+                        className="favorite"
+                        aria-pressed={isFavorite}
+                        aria-label={"Favori : " + film.title}
+                        onClick={() => toggleFavorite(film.id)}
+                      >
                         <span aria-hidden="true">{isFavorite ? "★" : "☆"}</span>
                       </button>
                     </div>
@@ -71,26 +106,24 @@ export default function App() {
           </div>
           {filteredFilms.length === 0 && <p>Aucun film ne correspond à votre recherche.</p>}
         </section>
+        <div className="selection" role="status" aria-live="polite">
+          {confirmedBooking ? (
+            <p>
+              Réservation confirmée : <strong>{confirmedBooking.title}</strong> (séance de {confirmedBooking.time}).
+            </p>
+          ) : (
+            <p>Aucune réservation en cours.</p>
+          )}
+        </div>
         <section id="infos" className="infos" aria-labelledby="infos-title">
           <h2 id="infos-title">Informations pratiques</h2>
           <p>Le cinéma ouvre trente minutes avant la première séance.</p>
         </section>
-        {selectedFilm && (
-          <div className="backdrop">
-            <div className="modal">
-              <div className="dialog-heading">
-                <h2>Réserver {selected}</h2>
-                <span className="close" onClick={() => setSelected(null)}>×</span>
-              </div>
-              <p>{selectedFilm.genre} · Séance de {selectedFilm.time}</p>
-              <p className={"availability " + (selectedFilm.available ? "available" : "unavailable")}>
-                {selectedFilm.available ? "Places disponibles" : "Séance complète"}
-              </p>
-              <p>Consultez la séance et sa disponibilité avant de revenir au programme.</p>
-              <button className="dialog-action" type="button" onClick={() => setSelected(null)}>Revenir aux films</button>
-            </div>
-          </div>
-        )}
+        <BookingDialog
+          film={selectedFilm}
+          onClose={closeBooking}
+          onConfirm={handleConfirm}
+        />
       </main>
     </>
   );
